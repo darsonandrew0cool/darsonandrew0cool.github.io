@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Chordbank</title>
+  <title>Shared Chord Charts</title>
   <style>
     :root {
       --bg: #0f172a;
@@ -17,7 +17,7 @@
 
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: system-ui, sans-serif;
       background: var(--bg);
       color: var(--text);
     }
@@ -36,30 +36,23 @@
       color: var(--text);
       margin-left: 1rem;
       cursor: pointer;
-      font-size: 0.95rem;
     }
 
     nav button.active { color: var(--accent); }
 
     main {
       padding: 1.5rem;
-      max-width: 900px;
+      max-width: 1000px;
       margin: auto;
     }
 
     section { display: none; }
     section.active { display: block; }
 
-    .artist {
-      margin-bottom: 1.5rem;
-    }
+    .artist { margin-bottom: 1.5rem; }
+    .artist h3 { border-bottom: 1px solid #1e293b; }
 
-    .artist h3 {
-      border-bottom: 1px solid #1e293b;
-      padding-bottom: 0.3rem;
-    }
-
-    .chart {
+    .chart, .set-item {
       background: var(--panel);
       padding: 1rem;
       border-radius: 10px;
@@ -98,17 +91,17 @@
     }
 
     .meta { color: var(--muted); font-size: 0.85rem; }
-
     pre { white-space: pre-wrap; }
   </style>
 </head>
 <body>
 
 <header>
-  <h2>Teens Chordbank</h2>
+  <h2>Shared Chord Charts</h2>
   <nav>
-    <button class="active" onclick="showSection('charts')">My Chord Charts</button>
-    <button onclick="showSection('upload')">Upload New Chart</button>
+    <button class="active" onclick="showSection('charts')">Charts</button>
+    <button onclick="showSection('upload')">New Chart</button>
+    <button onclick="showSection('setlist')">Sunday Setlist</button>
     <button onclick="showSection('settings')">Settings</button>
   </nav>
 </header>
@@ -118,151 +111,123 @@
 <section id="charts" class="active"></section>
 
 <section id="upload">
-  <h3>Upload New Chart</h3>
-
+  <h3>New Chord Chart</h3>
   <input id="title" placeholder="Song title" />
-
-  <select id="artist"></select>
-  <input id="newArtist" placeholder="Or add new artist" />
-
-  <input id="key" placeholder="Original Key (e.g. G, Bb, Dm)" />
+  <input id="artist" placeholder="Artist" />
+  <input id="key" placeholder="Original Key" />
   <input id="tempo" placeholder="Tempo (BPM)" />
-
-  <textarea id="sections" rows="4" placeholder="Song Sections (e.g. Verse, Chorus, Bridge)"></textarea>
-  <textarea id="content" rows="10" placeholder="Chord chart...\nUse section headers like [Verse]\n[Chorus]"></textarea>
-
+  <textarea id="sections" rows="3" placeholder="Sections (Verse, Chorus, Bridge)"></textarea>
+  <textarea id="content" rows="10" placeholder="Chord chart..."></textarea>
   <button class="primary" onclick="saveChart()">Save Chart</button>
 </section>
 
+<section id="setlist">
+  <h3>Sunday Setlist</h3>
+  <input id="setSong" placeholder="Song title" />
+  <input id="setKey" placeholder="Key" />
+  <input id="setMusician" placeholder="Assigned musician" />
+  <button class="primary" onclick="addSetItem()">Add to Setlist</button>
+  <div id="setItems"></div>
+</section>
+
 <section id="settings">
-  <h3>Settings</h3>
-  <p class="meta">All data is stored locally on this device.</p>
-  <button class="danger" onclick="clearAll()">Delete All Charts</button>
+  <h3>User Settings</h3>
+  <input id="username" placeholder="Your name" />
+  <button class="primary" onclick="saveUser()">Save Name</button>
+  <p class="meta">All users on this device can see and add charts.</p>
 </section>
 
 </main>
 
 <script>
-const storageKey = 'private_chord_charts_v2';
+const chartKey = 'shared_charts';
+const setKey = 'sunday_setlist';
+const userKey = 'current_user';
+
+function currentUser() {
+  return localStorage.getItem(userKey) || 'Anonymous';
+}
+
+function saveUser() {
+  localStorage.setItem(userKey, document.getElementById('username').value || 'Anonymous');
+}
 
 function loadCharts() {
-  return JSON.parse(localStorage.getItem(storageKey) || '[]');
+  return JSON.parse(localStorage.getItem(chartKey) || '[]');
 }
 
-function saveCharts(charts) {
-  localStorage.setItem(storageKey, JSON.stringify(charts));
-}
-
-function getArtists(charts) {
-  return [...new Set(charts.map(c => c.artist))].sort();
-}
-
-function populateArtists() {
-  const select = document.getElementById('artist');
-  const charts = loadCharts();
-  const artists = getArtists(charts);
-  select.innerHTML = '<option value="">Select artist</option>';
-  artists.forEach(a => {
-    const opt = document.createElement('option');
-    opt.value = a;
-    opt.textContent = a;
-    select.appendChild(opt);
-  });
+function saveCharts(c) {
+  localStorage.setItem(chartKey, JSON.stringify(c));
 }
 
 function renderCharts() {
-  const container = document.getElementById('charts');
-  container.innerHTML = '<h3>My Chord Charts</h3>';
+  const el = document.getElementById('charts');
+  el.innerHTML = '<h3>Chord Charts</h3>';
 
   const charts = loadCharts();
-  if (!charts.length) {
-    container.innerHTML += '<p class="meta">No charts yet.</p>';
-    return;
-  }
+  const artists = [...new Set(charts.map(c => c.artist))];
 
-  const artists = getArtists(charts);
-
-  artists.forEach(artist => {
+  artists.forEach(a => {
     const div = document.createElement('div');
     div.className = 'artist';
-    div.innerHTML = `<h3>${artist}</h3>`;
+    div.innerHTML = `<h3>${a}</h3>`;
 
-    charts.filter(c => c.artist === artist).forEach((chart, index) => {
-      const c = document.createElement('div');
-      c.className = 'chart';
-      c.innerHTML = `
-        <strong>${chart.title}</strong>
-        <div class="meta">Key: ${chart.key || '-'} | Tempo: ${chart.tempo || '-'} BPM</div>
-        <div class="meta">Sections: ${chart.sections || '-'}</div>
-        <pre>${chart.content}</pre>
-        <button onclick="editChart(${index})">Edit</button>
-        <button class="danger" onclick="deleteChart(${index})">Delete</button>
+    charts.filter(c => c.artist === a).forEach((c, i) => {
+      const d = document.createElement('div');
+      d.className = 'chart';
+      d.innerHTML = `
+        <strong>${c.title}</strong>
+        <div class="meta">Key: ${c.key} | Tempo: ${c.tempo} | Added by: ${c.user}</div>
+        <div class="meta">Sections: ${c.sections}</div>
+        <pre>${c.content}</pre>
       `;
-      div.appendChild(c);
+      div.appendChild(d);
     });
 
-    container.appendChild(div);
+    el.appendChild(div);
   });
 }
 
 function saveChart() {
-  const title = titleEl.value.trim();
-  const artist = newArtist.value.trim() || artistEl.value;
-  if (!title || !artist) return alert('Title and artist required');
-
   const charts = loadCharts();
   charts.push({
-    title,
-    artist,
-    key: keyEl.value,
-    tempo: tempoEl.value,
-    sections: sectionsEl.value,
-    content: contentEl.value
+    title: title.value,
+    artist: artist.value,
+    key: key.value,
+    tempo: tempo.value,
+    sections: sections.value,
+    content: content.value,
+    user: currentUser()
   });
-
   saveCharts(charts);
-  clearForm();
-  populateArtists();
   showSection('charts');
   renderCharts();
 }
 
-function editChart(index) {
-  const charts = loadCharts();
-  const c = charts[index];
-
-  titleEl.value = c.title;
-  keyEl.value = c.key;
-  tempoEl.value = c.tempo;
-  sectionsEl.value = c.sections;
-  contentEl.value = c.content;
-  newArtist.value = c.artist;
-
-  charts.splice(index, 1);
-  saveCharts(charts);
-  populateArtists();
-  showSection('upload');
+function loadSetlist() {
+  return JSON.parse(localStorage.getItem(setKey) || '[]');
 }
 
-function deleteChart(index) {
-  if (!confirm('Delete this chart?')) return;
-  const charts = loadCharts();
-  charts.splice(index, 1);
-  saveCharts(charts);
-  populateArtists();
-  renderCharts();
+function saveSetlist(s) {
+  localStorage.setItem(setKey, JSON.stringify(s));
 }
 
-function clearAll() {
-  if (!confirm('Delete all charts?')) return;
-  localStorage.removeItem(storageKey);
-  populateArtists();
-  renderCharts();
+function addSetItem() {
+  const list = loadSetlist();
+  list.push({ song: setSong.value, key: setKey.value, musician: setMusician.value });
+  saveSetlist(list);
+  renderSetlist();
 }
 
-function clearForm() {
-  titleEl.value = keyEl.value = tempoEl.value = sectionsEl.value = contentEl.value = newArtist.value = '';
-  artistEl.value = '';
+function renderSetlist() {
+  const el = document.getElementById('setItems');
+  el.innerHTML = '';
+  loadSetlist().forEach(i => {
+    const d = document.createElement('div');
+    d.className = 'set-item';
+    d.innerHTML = `<strong>${i.song}</strong><div class="meta">Key: ${i.key} | ${i.musician}</div>`;
+    el.appendChild(d);
+  });
 }
 
 function showSection(id) {
@@ -270,18 +235,9 @@ function showSection(id) {
   document.getElementById(id).classList.add('active');
 }
 
-const titleEl = document.getElementById('title');
-const artistEl = document.getElementById('artist');
-const newArtist = document.getElementById('newArtist');
-const keyEl = document.getElementById('key');
-const tempoEl = document.getElementById('tempo');
-const sectionsEl = document.getElementById('sections');
-const contentEl = document.getElementById('content');
-
-populateArtists();
 renderCharts();
+renderSetlist();
 </script>
 
 </body>
 </html>
-
