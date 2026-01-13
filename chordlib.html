@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Chord Charts</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --accent: #38bdf8;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    header {
+      padding: 1rem 1.5rem;
+      background: var(--panel);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    nav button {
+      background: none;
+      border: none;
+      color: var(--text);
+      margin-left: 1rem;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+
+    nav button.active { color: var(--accent); }
+
+    main {
+      padding: 1.5rem;
+      max-width: 900px;
+      margin: auto;
+    }
+
+    section { display: none; }
+    section.active { display: block; }
+
+    .artist {
+      margin-bottom: 1.5rem;
+    }
+
+    .artist h3 {
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 0.3rem;
+    }
+
+    .chart {
+      background: var(--panel);
+      padding: 1rem;
+      border-radius: 10px;
+      margin-top: 0.75rem;
+    }
+
+    textarea, input, select {
+      width: 100%;
+      background: #020617;
+      color: var(--text);
+      border: 1px solid #1e293b;
+      padding: 0.6rem;
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+      font-family: monospace;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #020617;
+      border: none;
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button.danger {
+      background: #ef4444;
+      border: none;
+      color: white;
+      padding: 0.4rem 0.7rem;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-left: 0.5rem;
+    }
+
+    .meta { color: var(--muted); font-size: 0.85rem; }
+
+    pre { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h2>My Chord Charts</h2>
+  <nav>
+    <button class="active" onclick="showSection('charts')">My Chord Charts</button>
+    <button onclick="showSection('upload')">Upload New Chart</button>
+    <button onclick="showSection('settings')">Settings</button>
+  </nav>
+</header>
+
+<main>
+
+<section id="charts" class="active"></section>
+
+<section id="upload">
+  <h3>Upload New Chart</h3>
+
+  <input id="title" placeholder="Song title" />
+
+  <select id="artist"></select>
+  <input id="newArtist" placeholder="Or add new artist" />
+
+  <input id="key" placeholder="Original Key (e.g. G, Bb, Dm)" />
+  <input id="tempo" placeholder="Tempo (BPM)" />
+
+  <textarea id="sections" rows="4" placeholder="Song Sections (e.g. Verse, Chorus, Bridge)"></textarea>
+  <textarea id="content" rows="10" placeholder="Chord chart...\nUse section headers like [Verse]\n[Chorus]"></textarea>
+
+  <button class="primary" onclick="saveChart()">Save Chart</button>
+</section>
+
+<section id="settings">
+  <h3>Settings</h3>
+  <p class="meta">All data is stored locally on this device.</p>
+  <button class="danger" onclick="clearAll()">Delete All Charts</button>
+</section>
+
+</main>
+
+<script>
+const storageKey = 'private_chord_charts_v2';
+
+function loadCharts() {
+  return JSON.parse(localStorage.getItem(storageKey) || '[]');
+}
+
+function saveCharts(charts) {
+  localStorage.setItem(storageKey, JSON.stringify(charts));
+}
+
+function getArtists(charts) {
+  return [...new Set(charts.map(c => c.artist))].sort();
+}
+
+function populateArtists() {
+  const select = document.getElementById('artist');
+  const charts = loadCharts();
+  const artists = getArtists(charts);
+  select.innerHTML = '<option value="">Select artist</option>';
+  artists.forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a;
+    opt.textContent = a;
+    select.appendChild(opt);
+  });
+}
+
+function renderCharts() {
+  const container = document.getElementById('charts');
+  container.innerHTML = '<h3>My Chord Charts</h3>';
+
+  const charts = loadCharts();
+  if (!charts.length) {
+    container.innerHTML += '<p class="meta">No charts yet.</p>';
+    return;
+  }
+
+  const artists = getArtists(charts);
+
+  artists.forEach(artist => {
+    const div = document.createElement('div');
+    div.className = 'artist';
+    div.innerHTML = `<h3>${artist}</h3>`;
+
+    charts.filter(c => c.artist === artist).forEach((chart, index) => {
+      const c = document.createElement('div');
+      c.className = 'chart';
+      c.innerHTML = `
+        <strong>${chart.title}</strong>
+        <div class="meta">Key: ${chart.key || '-'} | Tempo: ${chart.tempo || '-'} BPM</div>
+        <div class="meta">Sections: ${chart.sections || '-'}</div>
+        <pre>${chart.content}</pre>
+        <button onclick="editChart(${index})">Edit</button>
+        <button class="danger" onclick="deleteChart(${index})">Delete</button>
+      `;
+      div.appendChild(c);
+    });
+
+    container.appendChild(div);
+  });
+}
+
+function saveChart() {
+  const title = titleEl.value.trim();
+  const artist = newArtist.value.trim() || artistEl.value;
+  if (!title || !artist) return alert('Title and artist required');
+
+  const charts = loadCharts();
+  charts.push({
+    title,
+    artist,
+    key: keyEl.value,
+    tempo: tempoEl.value,
+    sections: sectionsEl.value,
+    content: contentEl.value
+  });
+
+  saveCharts(charts);
+  clearForm();
+  populateArtists();
+  showSection('charts');
+  renderCharts();
+}
+
+function editChart(index) {
+  const charts = loadCharts();
+  const c = charts[index];
+
+  titleEl.value = c.title;
+  keyEl.value = c.key;
+  tempoEl.value = c.tempo;
+  sectionsEl.value = c.sections;
+  contentEl.value = c.content;
+  newArtist.value = c.artist;
+
+  charts.splice(index, 1);
+  saveCharts(charts);
+  populateArtists();
+  showSection('upload');
+}
+
+function deleteChart(index) {
+  if (!confirm('Delete this chart?')) return;
+  const charts = loadCharts();
+  charts.splice(index, 1);
+  saveCharts(charts);
+  populateArtists();
+  renderCharts();
+}
+
+function clearAll() {
+  if (!confirm('Delete all charts?')) return;
+  localStorage.removeItem(storageKey);
+  populateArtists();
+  renderCharts();
+}
+
+function clearForm() {
+  titleEl.value = keyEl.value = tempoEl.value = sectionsEl.value = contentEl.value = newArtist.value = '';
+  artistEl.value = '';
+}
+
+function showSection(id) {
+  document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+const titleEl = document.getElementById('title');
+const artistEl = document.getElementById('artist');
+const newArtist = document.getElementById('newArtist');
+const keyEl = document.getElementById('key');
+const tempoEl = document.getElementById('tempo');
+const sectionsEl = document.getElementById('sections');
+const contentEl = document.getElementById('content');
+
+populateArtists();
+renderCharts();
+</script>
+
+</body>
+</html>
